@@ -1,0 +1,39 @@
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE / Editor Files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Large dataset files (>100MB) excluded from Git
+data/*.csv
+data/*.gdb/
+data/HPMS*
+*.gdb/
+*.csv
+
+# Exceptions: Keep essential metadata and error tables in data/
+!data/ATR_Location_Errors2025.xlsx
+!data/Data_Dictionary_-_Automated_Traffic_Volume_Counts.xlsx
+!data/README.md
+
+# Intermediate scratch files
+scratch/
+tmp/
+temp/

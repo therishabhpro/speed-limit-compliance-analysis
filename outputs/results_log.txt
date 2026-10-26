@@ -1,0 +1,253 @@
+
+██████████████████████████████████████████████████████████████████████████████
+█  SPEED LIMIT COMPLIANCE ANALYSIS ACROSS ROADWAY FUNCTIONAL CLASSES       █
+█  BPR Speed-Flow Model (Option B)                                         █
+██████████████████████████████████████████████████████████████████████████████
+
+==============================================================================
+  STEP 1: DATA PREPARATION & QUALITY ASSESSMENT
+==============================================================================
+
+--- 1a. Loading bad sensor locations from ATR_Location_Errors2025.xlsx ---
+  Bad RequestIDs to filter: 20
+  Bad SegmentIDs to filter: 24
+
+--- 1b. Loading ATR traffic volume data ---
+  Raw rows loaded: 1,875,154
+
+  Missing values BEFORE cleaning:
+    Vol: 15,257 (0.81%)
+    toSt: 1,246 (0.07%)
+
+  Rows removed (bad sensor locations): 15,098
+  Rows removed (non-numeric Vol): 15,257
+  Rows removed (missing WktGeom): 0
+  Duplicate rows removed: 0
+
+  ✓ Final ATR row count: 1,844,799
+  ✓ Unique sensors (SegmentID): 3,369
+  ✓ Year range: 2000 – 2026
+
+--- 1c. Loading HPMS New York geodatabase (NYC counties only) ---
+  Reading layer: HPMS_FULL_NY_2024
+  Filtering to NYC county IDs: [5, 47, 61, 81, 85]
+  HPMS NYC segments loaded: 58,044
+  CRS: EPSG:4326
+  HPMS rows with null geometry dropped: 0
+  HPMS rows with null f_system dropped: 4,254
+  HPMS speed_limit imputed from defaults: 21,565
+  HPMS through_lanes imputed from defaults: 93
+
+  ✓ Final HPMS NYC segments: 53,790
+
+--- 1d. Spatial join — mapping ATR sensors to HPMS road segments ---
+  Unique ATR sensor locations: 3,369
+  Reprojecting ATR sensors: EPSG:2263 → EPSG:32618 (UTM 18N)
+  Reprojecting HPMS roads:  EPSG:4326 → EPSG:32618 (UTM 18N)
+  Running sjoin_nearest (max_distance=200m)...
+  ✓ Sensors matched to HPMS road: 3,369
+  ✗ Sensors unmatched (no road within 200m): 0 — DROPPED
+
+--- 1e. Merging HPMS attributes into ATR volume data ---
+  ✓ Final merged dataset rows: 1,844,799
+  ✓ Unique sensors in final dataset: 3,369
+
+  Functional class distribution in merged data:
+    Principal Arterial: 753,772 records
+    Minor Arterial: 461,005 records
+    Local: 384,214 records
+    Major Collector: 145,361 records
+    Freeways/Expressways: 63,463 records
+    Interstate: 36,696 records
+    Minor Collector: 288 records
+
+==============================================================================
+  STEP 2: SPEED DERIVATION (BPR MODEL) & EXPLORATORY ANALYSIS
+==============================================================================
+
+--- 2a. Applying BPR speed-flow model ---
+  BPR formula: Speed = FFS / (1 + 0.15 x (V/C)^4.0)
+  Where FFS = speed_limit x 1.35 (NCHRP Report 855, urban free-flow adjustment)
+
+  Estimated speed statistics (all records):
+    Mean:  36.57 mph
+    Std:   7.20 mph
+    Min:   7.94 mph
+    Max:   67.50 mph
+    85th percentile: 40.50 mph
+
+--- 2b. Speed metrics by Functional Class ---
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │       SPEED METRICS BY FUNCTIONAL CLASS (BPR-Estimated, mph)       │
+  ├─────────────────────────────────────────────────────────────────────┤
+  │ Functional Class             Mean      Std      P85   Median        N │
+  ├─────────────────────────────────────────────────────────────────────┤
+  │ Interstate                  64.05     4.57    67.50    67.26   36,696 │
+  │ Freeways/Expressways        53.67    13.39    67.50    54.00   63,463 │
+  │ Principal Arterial          37.01     5.56    40.50    33.75  753,772 │
+  │ Minor Arterial              34.64     2.40    33.75    33.75  461,005 │
+  │ Major Collector             34.60     4.02    40.50    33.75  145,361 │
+  │ Local                       33.31     2.52    33.75    33.75  384,214 │
+  │ Minor Collector             32.94     0.73    33.75    33.06      288 │
+  └─────────────────────────────────────────────────────────────────────┘
+
+--- 2c. Peak vs. Off-Peak speed metrics by Functional Class ---
+  Peak hours defined: ['7:00', '8:00', '9:00', '16:00', '17:00', '18:00']
+
+  ┌───────────────────────────────────────────────────────────────────────────┐
+  │     PEAK vs OFF-PEAK SPEED METRICS BY FUNCTIONAL CLASS (mph)             │
+  ├───────────────────────────────────────────────────────────────────────────┤
+  │ Functional Class         Period         Mean      Std      P85        N │
+  ├───────────────────────────────────────────────────────────────────────────┤
+  │ Freeways/Expressways     Off-Peak      53.89    13.35    67.50   48,850 │
+  │ Freeways/Expressways     Peak          52.94    13.50    67.50   14,613 │
+  │ Interstate               Off-Peak      64.08     4.54    67.50   28,299 │
+  │ Interstate               Peak          63.92     4.65    67.50    8,397 │
+  │ Local                    Off-Peak      33.37     2.31    33.75  288,069 │
+  │ Local                    Peak          33.13     3.05    33.75   96,145 │
+  │ Major Collector          Off-Peak      34.60     4.01    40.50  108,972 │
+  │ Major Collector          Peak          34.57     4.07    40.50   36,389 │
+  │ Minor Arterial           Off-Peak      34.64     2.40    33.75  345,648 │
+  │ Minor Arterial           Peak          34.63     2.41    33.75  115,357 │
+  │ Minor Collector          Off-Peak      33.15     0.61    33.75      216 │
+  │ Minor Collector          Peak          32.31     0.70    33.07       72 │
+  │ Principal Arterial       Off-Peak      37.01     5.56    40.50  565,426 │
+  │ Principal Arterial       Peak          36.99     5.57    40.50  188,346 │
+  └───────────────────────────────────────────────────────────────────────────┘
+
+--- 2d. Generating visualizations ---
+  ✓ Saved: D:\Study\Sem-7\Safety\Assignment-1\boxplot_speed_variance_by_class.png
+  ✓ Saved: D:\Study\Sem-7\Safety\Assignment-1\barchart_noncompliance_by_class.png
+
+  ┌─────────────────────────────────────────────────────────────────────────────┐
+  │          NON-COMPLIANCE RATES BY FUNCTIONAL CLASS                          │
+  ├─────────────────────────────────────────────────────────────────────────────┤
+  │ Functional Class              Total  Non-Compl    Rate(%)  Critical% │
+  ├─────────────────────────────────────────────────────────────────────────────┤
+  │ Freeways/Expressways         63,463     63,463     100.00     100.00 │
+  │ Interstate                   36,696     36,696     100.00     100.00 │
+  │ Minor Arterial              461,005    460,995     100.00      99.86 │
+  │ Minor Collector                 288        288     100.00      99.65 │
+  │ Major Collector             145,361    145,341      99.99      99.03 │
+  │ Principal Arterial          753,772    752,269      99.80      99.76 │
+  │ Local                       384,214    378,587      98.54      97.53 │
+  └─────────────────────────────────────────────────────────────────────────────┘
+
+==============================================================================
+  STEP 3: STATISTICAL RISK EVIDENCE
+==============================================================================
+
+--- 3a. One-Way ANOVA: Speed differentials across functional classes ---
+
+  H₀: Mean estimated speed is equal across all functional classes
+  H₁: At least one functional class has a different mean speed
+
+  ┌─────────────────────────────────────────────┐
+  │          ONE-WAY ANOVA RESULTS              │
+  ├─────────────────────────────────────────────┤
+  │  F-statistic:      378039.9435             │
+  │  p-value:             0.00e+00             │
+  │  Groups (k):                 7             │
+  │  Total N:            1,844,799             │
+  ├─────────────────────────────────────────────┤
+  │  Result: HIGHLY SIGNIFICANT (p < 0.001)     │
+  └─────────────────────────────────────────────┘
+
+--- 3b. Tukey HSD Post-Hoc Test: Pairwise comparisons ---
+  Note: Sampling 100,000 records for Tukey test (original N=1,844,799)
+
+  Tukey HSD Results (α = 0.05):
+  ==========================================================================================
+              Multiple Comparison of Means - Tukey HSD, FWER=0.05
+================================================================================
+       group1              group2       meandiff p-adj   lower    upper   reject
+--------------------------------------------------------------------------------
+Freeways/Expressways         Interstate    9.862    0.0    9.463   10.261   True
+Freeways/Expressways              Local -20.7003    0.0 -20.9595 -20.4412   True
+Freeways/Expressways    Major Collector -19.4279    0.0 -19.7168  -19.139   True
+Freeways/Expressways     Minor Arterial -19.3487    0.0 -19.6045 -19.0928   True
+Freeways/Expressways    Minor Collector -20.8075    0.0  -23.925 -17.6899   True
+Freeways/Expressways Principal Arterial -17.0025    0.0 -17.2523 -16.7528   True
+          Interstate              Local -30.5623    0.0 -30.8963 -30.2283   True
+          Interstate    Major Collector -29.2899    0.0 -29.6475 -28.9323   True
+          Interstate     Minor Arterial -29.2107    0.0 -29.5421 -28.8792   True
+          Interstate    Minor Collector -30.6695    0.0 -33.7941 -27.5448   True
+          Interstate Principal Arterial -26.8645    0.0 -27.1913 -26.5378   True
+               Local    Major Collector   1.2724    0.0   1.0831   1.4618   True
+               Local     Minor Arterial   1.3516    0.0   1.2181   1.4852   True
+               Local    Minor Collector  -0.1072    1.0  -3.2171   3.0027  False
+               Local Principal Arterial   3.6978    0.0   3.5764   3.8192   True
+     Major Collector     Minor Arterial   0.0792 0.8684  -0.1056   0.2641  False
+     Major Collector    Minor Collector  -1.3796 0.8491  -4.4921   1.7329  False
+     Major Collector Principal Arterial   2.4254    0.0   2.2491   2.6016   True
+      Minor Arterial    Minor Collector  -1.4588 0.8111  -4.5684   1.6508  False
+      Minor Arterial Principal Arterial   2.3461    0.0   2.2319   2.4604   True
+     Minor Collector Principal Arterial    3.805 0.0057   0.6958   6.9141   True
+--------------------------------------------------------------------------------
+  ==========================================================================================
+
+  ✓ Significant pairwise differences: 17 / 21
+
+==============================================================================
+  STEP 4: RISK QUANTIFICATION & THRESHOLDS
+==============================================================================
+  Critical safety threshold: > 5 mph over posted limit
+
+--- 4a. Compliance ratios by Functional Class ---
+
+  ┌──────────────────────────────────────────────────────────────────────────────────────────┐
+  │                  COMPLIANCE & RISK SUMMARY BY FUNCTIONAL CLASS                          │
+  ├──────────────────────────────────────────────────────────────────────────────────────────┤
+  │ Class                        Total   Compliant%   CritViol%   MeanSpd   MeanLim     P85   Excess │
+  ├──────────────────────────────────────────────────────────────────────────────────────────┤
+  │ Freeways/Expressways        63,463         0.00    100.0000     53.67      39.8   67.50    13.91 │
+  │ Interstate                  36,696         0.00    100.0000     64.05      47.5   67.50    16.56 │
+  │ Minor Collector                288         0.00     99.6528     32.94      25.0   33.75     7.94 │
+  │ Minor Arterial             461,005         0.00     99.8594     34.64      25.7   33.75     8.97 │
+  │ Major Collector            145,361         0.01     99.0272     34.60      25.6   40.50     8.96 │
+  │ Principal Arterial         753,772         0.20     99.7584     37.01      27.5   40.50     9.55 │
+  │ Local                      384,214         1.46     97.5308     33.31      24.9   33.75     8.37 │
+  └──────────────────────────────────────────────────────────────────────────────────────────┘
+
+--- 4b. Odds Ratio — Critical violation: Arterials vs Local ---
+
+  Contingency Table:
+  ┌────────────────────┬──────────────┬──────────────┐
+  │                    │  Violation   │ No Violation │
+  ├────────────────────┼──────────────┼──────────────┤
+  │ Arterials          │    1,212,308 │        2,469 │
+  │ Local              │      374,727 │        9,487 │
+  └────────────────────┴──────────────┴──────────────┘
+
+  ┌─────────────────────────────────────────────────────────┐
+  │      ODDS RATIO & RELATIVE RISK RESULTS                │
+  ├─────────────────────────────────────────────────────────┤
+  │  Odds (Arterials):    491.011746                    │
+  │  Odds (Local):         39.498999                    │
+  │  Odds Ratio (A/L):       12.4310                    │
+  │  95% CI:              (11.8907, 12.9958)         │
+  │  Relative Risk (A/L):     1.0232                    │
+  │  Risk (Arterials):       99.7968%                   │
+  │  Risk (Local):           97.5308%                   │
+  ├─────────────────────────────────────────────────────────┤
+  │  Interpretation: Arterials have 12.43x higher odds   │
+  │  of critical speed violations than Local roads.       │
+  └─────────────────────────────────────────────────────────┘
+
+--- 4c. Chi-Square test: Violation independence across functional classes ---
+
+  Chi-square statistic: 21737.2864
+  Degrees of freedom:  6
+  p-value:             0.00e+00
+  Result: SIGNIFICANT — violation rates differ by functional class
+
+==============================================================================
+  PIPELINE COMPLETE
+==============================================================================
+  All results printed above. PNG plots saved to:
+    • boxplot_speed_variance_by_class.png
+    • barchart_noncompliance_by_class.png
+
+  Output directory: D:\Study\Sem-7\Safety\Assignment-1
+==============================================================================
